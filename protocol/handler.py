@@ -64,3 +64,10 @@ class ProtocolHandler:
         mx, my = move
         self.board[my][mx] = 1
         return f"{mx},{my}"
+
+    def find_next_move(self) -> tuple[int, int] | None:
+        for y in range(self.board_size):
+            for x in range(self.board_size):
+                if self.board[y][x] == 0:
+                    return x, y
+        return None
