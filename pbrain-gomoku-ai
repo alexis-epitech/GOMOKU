@@ -1,0 +1,28 @@
+import sys
+from protocol.handler import ProtocolHandler
+
+
+def main() -> None:
+    handler = ProtocolHandler()
+
+    while True:
+        try:
+            line = input().strip()
+        except EOFError:
+            break
+        if not line:
+            continue
+
+        response = handler.process(line)
+        if response is not None:
+            print(response, flush=True)
+
+        if handler.should_exit:
+            break
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.exit(0)
