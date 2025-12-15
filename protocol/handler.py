@@ -1,4 +1,3 @@
-# protocol/handler.py
 
 class ProtocolHandler:
 
