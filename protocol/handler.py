@@ -1,6 +1,4 @@
-
 class ProtocolHandler:
-
     def __init__(self):
         self.should_exit = False
         self.board_size: int = 0
@@ -16,6 +14,8 @@ class ProtocolHandler:
             return self.handle_start(parts)
         elif cmd == "BEGIN":
             return self.handle_begin()
+        elif cmd == "TURN":
+            return self.handle_turn(parts)
         elif cmd == "END":
             self.should_exit = True
             return None
@@ -42,3 +42,25 @@ class ProtocolHandler:
         x, y = center, center
         self.board[y][x] = 1
         return f"{x},{y}"
+
+    def handle_turn(self, parts: list[str]) -> str:
+        if not self.ready or self.board is None:
+            return "ERROR board not initialized"
+        if len(parts) != 2 or "," not in parts[1]:
+            return "ERROR wrong parameter format"
+        try:
+            x_str, y_str = parts[1].split(",")
+            x, y = int(x_str), int(y_str)
+        except ValueError:
+            return "ERROR invalid coordinates"
+        if not (0 <= x < self.board_size and 0 <= y < self.board_size):
+            return "ERROR move out of range"
+        if self.board[y][x] != 0:
+            return "ERROR cell already occupied"
+        self.board[y][x] = 2
+        move = self.find_next_move()
+        if move is None:
+            return "ERROR no valid moves"
+        mx, my = move
+        self.board[my][mx] = 1
+        return f"{mx},{my}"
