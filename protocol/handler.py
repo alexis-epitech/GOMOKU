@@ -4,6 +4,7 @@ class ProtocolHandler:
         self.board_size: int = 0
         self.board: list[list[int]] | None = None
         self.ready: bool = False
+        self.info: dict[str, str] = {}
 
     def process(self, line: str) -> str | None:
         parts = line.strip().split()
@@ -18,6 +19,10 @@ class ProtocolHandler:
             return self.handle_turn(parts)
         elif cmd == "BOARD":
             return self.handle_board()
+        elif cmd == "INFO":
+            return self.handle_info(parts)
+        elif cmd == "ABOUT":
+            return self.handle_about()
         elif cmd == "END":
             self.should_exit = True
             return None
@@ -92,6 +97,17 @@ class ProtocolHandler:
         mx, my = move
         self.board[my][mx] = 1
         return f"{mx},{my}"
+
+    def handle_info(self, parts: list[str]) -> None:
+        if len(parts) < 3:
+            return None
+        key = parts[1].lower()
+        value = " ".join(parts[2:])
+        self.info[key] = value
+        return None
+
+    def handle_about(self) -> str:
+        return 'name="pbrain-gomoku-ai", version="1.0", author="Raphael Guerin", country="FR"'
 
     def find_next_move(self) -> tuple[int, int] | None:
         for y in range(self.board_size):
