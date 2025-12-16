@@ -16,6 +16,8 @@ class ProtocolHandler:
             return self.handle_begin()
         elif cmd == "TURN":
             return self.handle_turn(parts)
+        elif cmd == "BOARD":
+            return self.handle_board()
         elif cmd == "END":
             self.should_exit = True
             return None
@@ -58,6 +60,32 @@ class ProtocolHandler:
         if self.board[y][x] != 0:
             return "ERROR cell already occupied"
         self.board[y][x] = 2
+        move = self.find_next_move()
+        if move is None:
+            return "ERROR no valid moves"
+        mx, my = move
+        self.board[my][mx] = 1
+        return f"{mx},{my}"
+
+    def handle_board(self) -> str:
+        if not self.ready or self.board is None:
+            return "ERROR board not initialized"
+        import sys
+        while True:
+            line = sys.stdin.readline()
+            if not line:
+                break
+            line = line.strip()
+            if line.upper() == "DONE":
+                break
+            try:
+                x_str, y_str, field_str = line.split(",")
+                x, y, field = int(x_str), int(y_str), int(field_str)
+            except ValueError:
+                return "ERROR invalid board data"
+            if 0 <= x < self.board_size and 0 <= y < self.board_size:
+                if field in (1, 2):
+                    self.board[y][x] = field
         move = self.find_next_move()
         if move is None:
             return "ERROR no valid moves"
