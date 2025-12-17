@@ -1,117 +1,175 @@
+from game.board import Board
+
 class ProtocolHandler:
     def __init__(self):
         self.should_exit = False
-        self.board_size: int = 0
-        self.board: list[list[int]] | None = None
-        self.ready: bool = False
+        self.board: Board | None = None
+        self.ready = False
         self.info: dict[str, str] = {}
 
     def process(self, line: str) -> str | None:
         parts = line.strip().split()
         if not parts:
             return None
+
         cmd = parts[0].upper()
         if cmd == "START":
             return self.handle_start(parts)
-        elif cmd == "BEGIN":
+        if cmd == "BEGIN":
             return self.handle_begin()
-        elif cmd == "TURN":
+        if cmd == "TURN":
             return self.handle_turn(parts)
-        elif cmd == "BOARD":
+        if cmd == "BOARD":
             return self.handle_board()
-        elif cmd == "INFO":
+        if cmd == "INFO":
             return self.handle_info(parts)
-        elif cmd == "ABOUT":
+        if cmd == "ABOUT":
             return self.handle_about()
-        elif cmd == "END":
+        if cmd == "END":
             self.should_exit = True
             return None
         return f"UNKNOWN {line}"
 
     def handle_start(self, parts: list[str]) -> str:
-        if len(parts) != 2:
-            return "ERROR wrong parameter count"
-        size_str = parts[1]
-        if not size_str.isdigit():
-            return "ERROR invalid parameter"
-        size = int(size_str)
-        if size < 5 or size > 100:
-            return f"ERROR invalid board size {size}"
-        self.board_size = size
-        self.board = [[0 for _ in range(size)] for _ in range(size)]
+        if len(parts) != 2 or not parts[1].isdigit():
+            return "ERROR invalid parameters"
+        size = int(parts[1])
+        if not 5 <= size <= 100:
+            return "ERROR invalid board size"
+        self.board = Board(size)
         self.ready = True
         return "OK"
 
     def handle_begin(self) -> str:
-        if not self.ready or self.board is None:
+        if not self.board:
             return "ERROR board not initialized"
-        center = self.board_size // 2
-        x, y = center, center
-        self.board[y][x] = 1
-        return f"{x},{y}"
+        c = self.board.size // 2
+        self.board.place_stone(c, c, 1)
+        return f"{c},{c}"
 
     def handle_turn(self, parts: list[str]) -> str:
-        if not self.ready or self.board is None:
+        if not self.board:
             return "ERROR board not initialized"
-        if len(parts) != 2 or "," not in parts[1]:
-            return "ERROR wrong parameter format"
         try:
             x_str, y_str = parts[1].split(",")
             x, y = int(x_str), int(y_str)
-        except ValueError:
-            return "ERROR invalid coordinates"
-        if not (0 <= x < self.board_size and 0 <= y < self.board_size):
-            return "ERROR move out of range"
-        if self.board[y][x] != 0:
-            return "ERROR cell already occupied"
-        self.board[y][x] = 2
+        except Exception:
+            return "ERROR wrong format"
+
+        self.board.place_stone(x, y, 2, force=True)
+        block = self.find_block_move()
+        if block:
+            bx, by = block
+            self.board.place_stone(bx, by, 1)
+            return f"{bx},{by}"
+
         move = self.find_next_move()
         if move is None:
             return "ERROR no valid moves"
         mx, my = move
-        self.board[my][mx] = 1
+        self.board.place_stone(mx, my, 1)
         return f"{mx},{my}"
 
     def handle_board(self) -> str:
-        if not self.ready or self.board is None:
-            return "ERROR board not initialized"
         import sys
-        while True:
-            line = sys.stdin.readline()
-            if not line:
-                break
+
+        if not self.board:
+            return "ERROR board not initialized"
+        self.board.clear()
+        for line in sys.stdin:
             line = line.strip()
+            if not line:
+                continue
             if line.upper() == "DONE":
                 break
-            try:
-                x_str, y_str, field_str = line.split(",")
-                x, y, field = int(x_str), int(y_str), int(field_str)
-            except ValueError:
-                return "ERROR invalid board data"
-            if 0 <= x < self.board_size and 0 <= y < self.board_size:
-                if field in (1, 2):
-                    self.board[y][x] = field
+            x, y, v = map(int, line.split(","))
+            self.board.place_stone(x, y, v, force=True)
+
+        block = self.find_block_move()
+        if block:
+            bx, by = block
+            self.board.place_stone(bx, by, 1)
+            return f"{bx},{by}"
+
         move = self.find_next_move()
         if move is None:
             return "ERROR no valid moves"
         mx, my = move
-        self.board[my][mx] = 1
+        self.board.place_stone(mx, my, 1)
+        return f"{mx},{my}"
+
+    def handle_board_lines(self, lines: list[str]) -> str:
+        if not self.board:
+            self.board = Board(20)
+            self.ready = True
+        self.board.clear()
+        for ln in lines:
+            if not ln:
+                continue
+            x, y, v = map(int, ln.split(","))
+            self.board.place_stone(x, y, v, force=True)
+
+        block = self.find_block_move()
+        if block:
+            bx, by = block
+            self.board.place_stone(bx, by, 1)
+            return f"{bx},{by}"
+
+        move = self.find_next_move()
+        if move is None:
+            return "ERROR no valid moves"
+        mx, my = move
+        self.board.place_stone(mx, my, 1)
         return f"{mx},{my}"
 
     def handle_info(self, parts: list[str]) -> None:
-        if len(parts) < 3:
-            return None
-        key = parts[1].lower()
-        value = " ".join(parts[2:])
-        self.info[key] = value
+        if len(parts) >= 3:
+            self.info[parts[1].lower()] = " ".join(parts[2:])
         return None
 
     def handle_about(self) -> str:
-        return 'name="pbrain-gomoku-ai", version="1.0", author="Raphael Guerin", country="FR"'
+        return ('name="pbrain-gomoku-ai", version="2.1", author="Raphael Guerin", country="FR"')
+
+    def find_block_move(self) -> tuple[int, int] | None:
+        b = self.board
+        if not b:
+            return None
+        threat_moves = b.check_lose_in_1(1)
+        if threat_moves:
+            threat_moves.sort(key=lambda m: (m[1], m[0]))
+            return threat_moves[0]
+        return None
+
+    def find_tactical_move(self) -> tuple[int, int] | None:
+        b = self.board
+        if not b:
+            return None
+
+        for method in (b.check_win_in_1, b.check_lose_in_1, b.check_win_in_2, b.check_lose_in_2,):
+            moves = method(1)
+            if moves:
+                moves.sort(key=lambda m: (m[1], m[0]))
+                return moves[0]
+        return None
 
     def find_next_move(self) -> tuple[int, int] | None:
-        for y in range(self.board_size):
-            for x in range(self.board_size):
-                if self.board[y][x] == 0:
-                    return x, y
+        b = self.board
+        if not b:
+            return None
+
+        if b.check_win(1):
+            print("I win!", flush=True)
+            self.should_exit = True
+            return None
+        if b.check_win(2):
+            print("You won !", flush=True)
+            self.should_exit = True
+            return None
+        mv = self.find_tactical_move()
+        if mv:
+            return mv
+        for y in range(b.size):
+            for x in range(b.size):
+                if b.is_valid_move(x, y):
+                    return (x, y)
         return None
