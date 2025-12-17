@@ -56,7 +56,12 @@ class ProtocolHandler:
         except Exception:
             return "ERROR wrong format"
 
+        if not (0 <= x < self.board.size and 0 <= y < self.board.size):
+            return "ERROR invalid move"
+        if not self.board.is_valid_move(x, y):
+            return "ERROR invalid move"
         self.board.place_stone(x, y, 2, force=True)
+
         block = self.find_block_move()
         if block:
             bx, by = block
