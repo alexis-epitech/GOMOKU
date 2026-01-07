@@ -1,5 +1,6 @@
 from game.board import Board
 
+
 class ProtocolHandler:
     def __init__(self):
         self.should_exit = False
@@ -19,8 +20,6 @@ class ProtocolHandler:
             return self.handle_begin()
         if cmd == "TURN":
             return self.handle_turn(parts)
-        if cmd == "BOARD":
-            return self.handle_board()
         if cmd == "INFO":
             return self.handle_info(parts)
         if cmd == "ABOUT":
@@ -50,6 +49,9 @@ class ProtocolHandler:
     def handle_turn(self, parts: list[str]) -> str:
         if not self.board:
             return "ERROR board not initialized"
+        if len(parts) < 2:
+            return "ERROR wrong format"
+
         try:
             x_str, y_str = parts[1].split(",")
             x, y = int(x_str), int(y_str)
@@ -60,42 +62,20 @@ class ProtocolHandler:
             return "ERROR invalid move"
         if not self.board.is_valid_move(x, y):
             return "ERROR invalid move"
+
         self.board.place_stone(x, y, 2, force=True)
+        win_moves = self.board.check_win_in_1(1)
+        if win_moves:
+            win_moves.sort(key=lambda m: (m[1], m[0]))
+            wx, wy = win_moves[0]
+            self.board.place_stone(wx, wy, 1)
+            return f"{wx},{wy}"
 
         block = self.find_block_move()
         if block:
             bx, by = block
             self.board.place_stone(bx, by, 1)
             return f"{bx},{by}"
-
-        move = self.find_next_move()
-        if move is None:
-            return "ERROR no valid moves"
-        mx, my = move
-        self.board.place_stone(mx, my, 1)
-        return f"{mx},{my}"
-
-    def handle_board(self) -> str:
-        import sys
-
-        if not self.board:
-            return "ERROR board not initialized"
-        self.board.clear()
-        for line in sys.stdin:
-            line = line.strip()
-            if not line:
-                continue
-            if line.upper() == "DONE":
-                break
-            x, y, v = map(int, line.split(","))
-            self.board.place_stone(x, y, v, force=True)
-
-        block = self.find_block_move()
-        if block:
-            bx, by = block
-            self.board.place_stone(bx, by, 1)
-            return f"{bx},{by}"
-
         move = self.find_next_move()
         if move is None:
             return "ERROR no valid moves"
@@ -113,6 +93,13 @@ class ProtocolHandler:
                 continue
             x, y, v = map(int, ln.split(","))
             self.board.place_stone(x, y, v, force=True)
+
+        win_moves = self.board.check_win_in_1(1)
+        if win_moves:
+            win_moves.sort(key=lambda m: (m[1], m[0]))
+            wx, wy = win_moves[0]
+            self.board.place_stone(wx, wy, 1)
+            return f"{wx},{wy}"
 
         block = self.find_block_move()
         if block:
@@ -133,7 +120,9 @@ class ProtocolHandler:
         return None
 
     def handle_about(self) -> str:
-        return ('name="pbrain-gomoku-ai", version="2.1", author="Raphael Guerin", country="FR"')
+        return (
+            'name="pbrain-gomoku-ai", version="2.1", author="Raphael Guerin", country="FR"'
+        )
 
     def find_block_move(self) -> tuple[int, int] | None:
         b = self.board
@@ -149,8 +138,12 @@ class ProtocolHandler:
         b = self.board
         if not b:
             return None
-
-        for method in (b.check_win_in_1, b.check_lose_in_1, b.check_win_in_2, b.check_lose_in_2,):
+        for method in (
+            b.check_win_in_1,
+            b.check_lose_in_1,
+            b.check_win_in_2,
+            b.check_lose_in_2,
+        ):
             moves = method(1)
             if moves:
                 moves.sort(key=lambda m: (m[1], m[0]))
@@ -161,18 +154,17 @@ class ProtocolHandler:
         b = self.board
         if not b:
             return None
-
         if b.check_win(1):
-            print("I win!", flush=True)
             self.should_exit = True
             return None
         if b.check_win(2):
-            print("You won !", flush=True)
             self.should_exit = True
             return None
+
         mv = self.find_tactical_move()
         if mv:
             return mv
+
         for y in range(b.size):
             for x in range(b.size):
                 if b.is_valid_move(x, y):
