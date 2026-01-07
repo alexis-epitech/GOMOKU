@@ -1,3 +1,4 @@
+from ai.minimax import MinimaxAI
 from game.board import Board
 
 
@@ -64,9 +65,9 @@ class ProtocolHandler:
             return "ERROR invalid move"
 
         self.board.place_stone(x, y, 2, force=True)
+
         win_moves = self.board.check_win_in_1(1)
         if win_moves:
-            win_moves.sort(key=lambda m: (m[1], m[0]))
             wx, wy = win_moves[0]
             self.board.place_stone(wx, wy, 1)
             return f"{wx},{wy}"
@@ -76,6 +77,7 @@ class ProtocolHandler:
             bx, by = block
             self.board.place_stone(bx, by, 1)
             return f"{bx},{by}"
+
         move = self.find_next_move()
         if move is None:
             return "ERROR no valid moves"
@@ -96,7 +98,6 @@ class ProtocolHandler:
 
         win_moves = self.board.check_win_in_1(1)
         if win_moves:
-            win_moves.sort(key=lambda m: (m[1], m[0]))
             wx, wy = win_moves[0]
             self.board.place_stone(wx, wy, 1)
             return f"{wx},{wy}"
@@ -165,8 +166,6 @@ class ProtocolHandler:
         if mv:
             return mv
 
-        for y in range(b.size):
-            for x in range(b.size):
-                if b.is_valid_move(x, y):
-                    return (x, y)
-        return None
+        ai = MinimaxAI(depth=2)
+        _, best_move = ai.minimax(b, ai.max_depth, True, 1)
+        return best_move
