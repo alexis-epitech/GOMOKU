@@ -72,3 +72,24 @@ def test_lose_in_2():
     ]
     move = run_board_test(setup)
     assert move in ["10,8", "7,8", "12,8"], f"Expected block move, got {move}"
+
+def test_prioritize_win_over_block():
+    setup = [
+        "START 20",
+        "BOARD",
+        "5,5,1",
+        "6,5,1",
+        "7,5,1",
+        "8,5,1",
+        "5,10,2",
+        "6,10,2",
+        "7,10,2",
+        "8,10,2",
+        "DONE",
+    ]
+
+    move = run_board_test(setup)
+    valid_winning_moves = ["9,5", "4,5"]
+    assert (
+        move in valid_winning_moves
+    ), f"Bot should win immediately at one of {valid_winning_moves}, got {move}"
