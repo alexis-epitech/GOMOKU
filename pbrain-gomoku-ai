@@ -15,6 +15,22 @@ def main() -> None:
         if not line:
             continue
 
+        if line.upper() == "BOARD":
+            board_lines = []
+            while True:
+                try:
+                    board_line = input().strip()
+                    if board_line.upper() == "DONE":
+                        break
+                    if board_line:
+                        board_lines.append(board_line)
+                except EOFError:
+                    break
+            response = handler.handle_board_lines(board_lines)
+            if response:
+                print(response, flush=True)
+            continue
+
         response = handler.process(line)
         if response is not None:
             print(response, flush=True)
