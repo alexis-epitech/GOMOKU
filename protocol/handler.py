@@ -1,4 +1,5 @@
 from ai.minimax import MinimaxAI
+from ai.patterns import PatternDetector
 from game.board import Board
 
 
@@ -65,23 +66,23 @@ class ProtocolHandler:
             return "ERROR invalid move"
 
         self.board.place_stone(x, y, 2, force=True)
+        move = self.find_best_strategic_move()
 
-        win_moves = self.board.check_win_in_1(1)
-        if win_moves:
-            wx, wy = win_moves[0]
-            self.board.place_stone(wx, wy, 1)
-            return f"{wx},{wy}"
-
-        block = self.find_block_move()
-        if block:
-            bx, by = block
-            self.board.place_stone(bx, by, 1)
-            return f"{bx},{by}"
-
-        move = self.find_next_move()
         if move is None:
             return "ERROR no valid moves"
+
         mx, my = move
+
+        # Validate the move is still valid before placing it
+        if not self.board.is_valid_move(mx, my):
+            # Find fallback move
+            detector = PatternDetector(self.board)
+            candidates = detector.find_critical_moves(1)
+            if candidates:
+                mx, my = candidates[0][0], candidates[0][1]
+            else:
+                return "ERROR no valid moves"
+
         self.board.place_stone(mx, my, 1)
         return f"{mx},{my}"
 
@@ -89,28 +90,26 @@ class ProtocolHandler:
         if not self.board:
             self.board = Board(20)
             self.ready = True
+
         self.board.clear()
+
         for ln in lines:
             if not ln:
                 continue
-            x, y, v = map(int, ln.split(","))
-            self.board.place_stone(x, y, v, force=True)
+            try:
+                parts = ln.split(",")
+                if len(parts) != 3:
+                    continue
+                x, y, v = map(int, parts)
+                self.board.place_stone(x, y, v, force=True)
+            except (ValueError, IndexError):
+                continue
 
-        win_moves = self.board.check_win_in_1(1)
-        if win_moves:
-            wx, wy = win_moves[0]
-            self.board.place_stone(wx, wy, 1)
-            return f"{wx},{wy}"
-
-        block = self.find_block_move()
-        if block:
-            bx, by = block
-            self.board.place_stone(bx, by, 1)
-            return f"{bx},{by}"
-
-        move = self.find_next_move()
+        move = self.find_best_strategic_move()
         if move is None:
-            return "ERROR no valid moves"
+            c = self.board.size // 2
+            return f"{c},{c}"
+
         mx, my = move
         self.board.place_stone(mx, my, 1)
         return f"{mx},{my}"
@@ -121,51 +120,89 @@ class ProtocolHandler:
         return None
 
     def handle_about(self) -> str:
-        return (
-            'name="pbrain-gomoku-ai", version="2.1", author="Raphael Guerin", country="FR"'
-        )
+        return 'name="pbrain-gomoku-ai", version="2.2", author="Raphael Guerin", country="FR"'
 
-    def find_block_move(self) -> tuple[int, int] | None:
-        b = self.board
-        if not b:
+    def find_best_strategic_move(self) -> tuple[int, int] | None:
+        """Priority-based strategy (fast)"""
+        if not self.board:
             return None
-        threat_moves = b.check_lose_in_1(1)
-        if threat_moves:
-            threat_moves.sort(key=lambda m: (m[1], m[0]))
-            return threat_moves[0]
+    
+        detector = PatternDetector(self.board)
+    
+        # Priority 1: Win immediately
+        for y in range(self.board.size):
+            for x in range(self.board.size):
+                if self.board.grid[y][x] == 0:
+                    threats = detector.analyze_move(x, y, 1)
+                    if threats["five"] > 0:
+                        return (x, y)
+    
+        # Priority 2: Block opponent win
+        for y in range(self.board.size):
+            for x in range(self.board.size):
+                if self.board.grid[y][x] == 0:
+                    threats = detector.analyze_move(x, y, 2)
+                    if threats["five"] > 0:
+                        return (x, y)
+    
+        # Priority 3: Block opponent open-4
+        for y in range(self.board.size):
+            for x in range(self.board.size):
+                if self.board.grid[y][x] == 0:
+                    threats = detector.analyze_move(x, y, 2)
+                    if threats["open_four"] > 0:
+                        return (x, y)
+    
+        # Priority 4: Block opponent four
+        for y in range(self.board.size):
+            for x in range(self.board.size):
+                if self.board.grid[y][x] == 0:
+                    threats = detector.analyze_move(x, y, 2)
+                    if threats["four"] > 0:
+                        return (x, y)
+    
+        # Priority 5: CREATE OUR OWN FOUR
+        for y in range(self.board.size):
+            for x in range(self.board.size):
+                if self.board.grid[y][x] == 0:
+                    threats = detector.analyze_move(x, y, 1)
+                    if threats["four"] > 0:
+                        return (x, y)
+    
+        # Priority 6: Create open-4
+        for y in range(self.board.size):
+            for x in range(self.board.size):
+                if self.board.grid[y][x] == 0:
+                    threats = detector.analyze_move(x, y, 1)
+                    if threats["open_four"] > 0:
+                        return (x, y)
+    
+        # Priority 7: Create multiple open-3s
+        best_score = 0
+        best_move = None
+        for y in range(self.board.size):
+            for x in range(self.board.size):
+                if self.board.grid[y][x] == 0:
+                    threats = detector.analyze_move(x, y, 1)
+                    if threats["open_three"] >= 2:
+                        return (x, y)
+                    score = threats["open_three"] * 100 + threats["four"] * 50
+                    if score > best_score:
+                        best_score = score
+                        best_move = (x, y)
+    
+        if best_move and best_score > 0:
+            return best_move
+    
+        # Priority 8: Fall back to critical moves
+        candidates = detector.find_critical_moves(1)
+        if candidates:
+            return (candidates[0][0], candidates[0][1])
+    
+        # Priority 9: Just find ANY empty cell on the board
+        for y in range(self.board.size):
+            for x in range(self.board.size):
+                if self.board.is_valid_move(x, y):
+                    return (x, y)
+    
         return None
-
-    def find_tactical_move(self) -> tuple[int, int] | None:
-        b = self.board
-        if not b:
-            return None
-        for method in (
-            b.check_win_in_1,
-            b.check_lose_in_1,
-            b.check_win_in_2,
-            b.check_lose_in_2,
-        ):
-            moves = method(1)
-            if moves:
-                moves.sort(key=lambda m: (m[1], m[0]))
-                return moves[0]
-        return None
-
-    def find_next_move(self) -> tuple[int, int] | None:
-        b = self.board
-        if not b:
-            return None
-        if b.check_win(1):
-            self.should_exit = True
-            return None
-        if b.check_win(2):
-            self.should_exit = True
-            return None
-
-        mv = self.find_tactical_move()
-        if mv:
-            return mv
-
-        ai = MinimaxAI(depth=2)
-        _, best_move = ai.minimax(b, ai.max_depth, True, 1)
-        return best_move

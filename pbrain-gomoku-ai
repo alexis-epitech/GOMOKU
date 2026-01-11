@@ -19,13 +19,16 @@ def main() -> None:
             board_lines = []
             while True:
                 try:
-                    board_line = input().strip()
-                    if board_line.upper() == "DONE":
-                        break
-                    if board_line:
-                        board_lines.append(board_line)
-                except EOFError:
+                    board_line = sys.stdin.readline()
+                except (KeyboardInterrupt, EOFError):
                     break
+                if not board_line:
+                    break
+                stripped = board_line.strip()
+                if stripped.upper() == "DONE":
+                    break
+                if stripped:
+                    board_lines.append(stripped)
             response = handler.handle_board_lines(board_lines)
             if response:
                 print(response, flush=True)

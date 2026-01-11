@@ -1,7 +1,6 @@
-# ai/minimax.py
 from __future__ import annotations
-from copy import deepcopy
 from game.board import Board
+from ai.patterns import PatternDetector
 
 
 class MinimaxAI:
@@ -9,90 +8,128 @@ class MinimaxAI:
         self.max_depth = depth
 
     def evaluate(self, board: Board, player: int) -> int:
-        opponent = 1 if player == 2 else 2
+        """Fast evaluation"""
+        score = 0
+        opponent = 3 - player
 
-        def count_lines(p: int, length: int) -> int:
-            count = 0
-            n = board.size
-            for y in range(n):
-                for x in range(n):
-                    if board.grid[y][x] != p:
-                        continue
-                    directions = [(1, 0), (0, 1), (1, 1), (1, -1)]
-                    for dx, dy in directions:
-                        if (
-                            all(
-                                0 <= x + k * dx < n
-                                and 0 <= y + k * dy < n
-                                and board.grid[y + k * dy][x + k * dx] == p
-                                for k in range(length)
-                            )
-                            and (x - dx < 0 or board.grid[y - dy][x - dx] != p)
-                            and (
-                                x + length * dx >= n
-                                or y + length * dy >= n
-                                or board.grid[y + length * dy][x + length * dx] != p
-                            )
-                        ):
-                            count += 1
-            return count
+        for y in range(board.size):
+            for x in range(board.size):
+                cell = board.grid[y][x]
+                if cell == player:
+                    score += self._position_value(board, x, y, player)
+                elif cell == opponent:
+                    score -= self._position_value(board, x, y, opponent)
 
-        def score_lines(p: int) -> int:
-            weights = {2: 5, 3: 50, 4: 500, 5: 100000}
-            return sum(count_lines(p, l) * weights[l] for l in weights)
+        return score
 
-        return score_lines(player) - score_lines(opponent)
+    def _position_value(
+        self, board: Board, x: int, y: int, player: int
+    ) -> int:
+        """Fast position evaluation"""
+        value = 0
+        directions = [(1, 0), (0, 1), (1, 1), (1, -1)]
+
+        for dx, dy in directions:
+            count = 1
+            # Count in both directions
+            for d in [-1, 1]:
+                i = 1
+                while True:
+                    nx, ny = x + i * dx * d, y + i * dy * d
+                    if not (0 <= nx < board.size and 0 <= ny < board.size):
+                        break
+                    if board.grid[ny][nx] == player:
+                        count += 1
+                        i += 1
+                    else:
+                        break
+
+            if count >= 5:
+                value += 100000
+            elif count == 4:
+                value += 10000
+            elif count == 3:
+                value += 1000
+            elif count == 2:
+                value += 100
+
+        return value
 
     def minimax(
-        self, board: Board, depth: int, maximizing: bool, player: int
-    ) -> tuple[int, tuple[int, int] | None]:
-        opponent = 1 if player == 2 else 2
+        self,
+        board: Board,
+        depth: int,
+        alpha: float,
+        beta: float,
+        maximizing: bool,
+        player: int,
+    ) -> tuple[float, tuple[int, int] | None]:
+        """Minimax with alpha-beta (no deepcopy!)"""
+        opponent = 3 - player
 
-        if depth == 0 or board.check_win(player) or board.check_win(opponent):
+        if depth == 0:
             return self.evaluate(board, player), None
 
-        moves = self.possible_moves(board)
-        if not moves:
+        if board.check_win(player):
+            return 100000 + depth * 1000, None
+        if board.check_win(opponent):
+            return -100000 - depth * 1000, None
+
+        # Get candidate moves
+        detector = PatternDetector(board)
+        candidates = detector.find_critical_moves(player)
+
+        if not candidates:
             return self.evaluate(board, player), None
+
+        best_move = None
 
         if maximizing:
-            best_score = -10**9
-            best_move = None
-            for (x, y) in moves:
-                new_board = deepcopy(board)
-                new_board.place_stone(x, y, player)
-                score, _ = self.minimax(new_board, depth - 1, False, player)
-                if score > best_score:
-                    best_score = score
-                    best_move = (x, y)
-            return best_score, best_move
-        else:
-            best_score = 10**9
-            best_move = None
-            for (x, y) in moves:
-                new_board = deepcopy(board)
-                new_board.place_stone(x, y, opponent)
-                score, _ = self.minimax(new_board, depth - 1, True, player)
-                if score < best_score:
-                    best_score = score
-                    best_move = (x, y)
-            return best_score, best_move
+            max_score = -float("inf")
+            for x, y, _ in candidates[:10]:  # Top 10 only
+                # Make move
+                board.grid[y][x] = player
+                score, _ = self.minimax(
+                    board, depth - 1, alpha, beta, False, player
+                )
+                # Undo move
+                board.grid[y][x] = 0
 
-    def possible_moves(self, board: Board) -> list[tuple[int, int]]:
-        n = board.size
-        moves = set()
-        for y in range(n):
-            for x in range(n):
-                if board.grid[y][x] != 0:
-                    for dy in range(-1, 2):
-                        for dx in range(-1, 2):
-                            nx, ny = x + dx, y + dy
-                            if (
-                                0 <= nx < n
-                                and 0 <= ny < n
-                                and board.grid[ny][nx] == 0
-                            ):
-                                moves.add((nx, ny))
-        if not moves:
-            moves.add((n // 2, n // 2))
-        return list(moves)
+                if score > max_score:
+                    max_score = score
+                    best_move = (x, y)
+
+                alpha = max(alpha, score)
+                if beta <= alpha:
+                    break
+
+            return max_score, best_move
+        else:
+            min_score = float("inf")
+            for x, y, _ in candidates[:10]:
+                # Make move
+                board.grid[y][x] = opponent
+                score, _ = self.minimax(
+                    board, depth - 1, alpha, beta, True, player
+                )
+                # Undo move
+                board.grid[y][x] = 0
+
+                if score < min_score:
+                    min_score = score
+                    best_move = (x, y)
+
+                beta = min(beta, score)
+                if beta <= alpha:
+                    break
+
+            return min_score, best_move
+
+    def find_best_move(
+        self, board: Board, player: int
+    ) -> tuple[int, int] | None:
+        """Find best move"""
+        _, move = self.minimax(
+            board, self.max_depth, -float("inf"), float("inf"), True, player
+        )
+        return move
