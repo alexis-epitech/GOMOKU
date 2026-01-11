@@ -73,9 +73,7 @@ class ProtocolHandler:
 
         mx, my = move
 
-        # Validate the move is still valid before placing it
         if not self.board.is_valid_move(mx, my):
-            # Find fallback move
             detector = PatternDetector(self.board)
             candidates = detector.find_critical_moves(1)
             if candidates:
@@ -129,7 +127,6 @@ class ProtocolHandler:
     
         detector = PatternDetector(self.board)
     
-        # Priority 1: Win immediately
         for y in range(self.board.size):
             for x in range(self.board.size):
                 if self.board.grid[y][x] == 0:
@@ -137,7 +134,6 @@ class ProtocolHandler:
                     if threats["five"] > 0:
                         return (x, y)
     
-        # Priority 2: Block opponent win
         for y in range(self.board.size):
             for x in range(self.board.size):
                 if self.board.grid[y][x] == 0:
@@ -145,7 +141,6 @@ class ProtocolHandler:
                     if threats["five"] > 0:
                         return (x, y)
     
-        # Priority 3: Block opponent open-4
         for y in range(self.board.size):
             for x in range(self.board.size):
                 if self.board.grid[y][x] == 0:
@@ -153,7 +148,6 @@ class ProtocolHandler:
                     if threats["open_four"] > 0:
                         return (x, y)
     
-        # Priority 4: Block opponent four
         for y in range(self.board.size):
             for x in range(self.board.size):
                 if self.board.grid[y][x] == 0:
@@ -161,7 +155,6 @@ class ProtocolHandler:
                     if threats["four"] > 0:
                         return (x, y)
     
-        # Priority 5: CREATE OUR OWN FOUR
         for y in range(self.board.size):
             for x in range(self.board.size):
                 if self.board.grid[y][x] == 0:
@@ -169,7 +162,6 @@ class ProtocolHandler:
                     if threats["four"] > 0:
                         return (x, y)
     
-        # Priority 6: Create open-4
         for y in range(self.board.size):
             for x in range(self.board.size):
                 if self.board.grid[y][x] == 0:
@@ -177,7 +169,6 @@ class ProtocolHandler:
                     if threats["open_four"] > 0:
                         return (x, y)
     
-        # Priority 7: Create multiple open-3s
         best_score = 0
         best_move = None
         for y in range(self.board.size):
@@ -194,12 +185,10 @@ class ProtocolHandler:
         if best_move and best_score > 0:
             return best_move
     
-        # Priority 8: Fall back to critical moves
         candidates = detector.find_critical_moves(1)
         if candidates:
             return (candidates[0][0], candidates[0][1])
     
-        # Priority 9: Just find ANY empty cell on the board
         for y in range(self.board.size):
             for x in range(self.board.size):
                 if self.board.is_valid_move(x, y):
