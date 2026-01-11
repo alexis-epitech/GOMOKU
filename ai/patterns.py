@@ -23,12 +23,10 @@ class PatternDetector:
         self.board.grid[y][x] = player
 
         for dx, dy in self.directions:
-            # Count in both directions
             count = 1
             open_left = False
             open_right = False
 
-            # Count left
             left_count = 0
             i = 1
             while True:
@@ -44,7 +42,6 @@ class PatternDetector:
                 else:
                     break
 
-            # Count right
             right_count = 0
             i = 1
             while True:
@@ -62,7 +59,6 @@ class PatternDetector:
 
             count = 1 + left_count + right_count
 
-            # Categorize - ONLY count if at least one side is open
             if count >= 5:
                 threats["five"] += 1
             elif count == 4:
@@ -77,7 +73,6 @@ class PatternDetector:
                 if open_left or open_right:
                     threats["two"] += 1
 
-            # Check for gap patterns XX.X, X.XX, XXX.X, etc.
             if count < 5:
                 gap_pattern = self._check_gap_pattern(x, y, dx, dy, player)
                 if gap_pattern == 4:
@@ -130,20 +125,18 @@ class PatternDetector:
                 if self.board.grid[y][x] != 0:
                     continue
 
-                # Only check positions near stones
                 if not self._is_near_stone(x, y, 2):
                     continue
 
-                # Quick scoring
                 my_score = self._quick_score(x, y, player)
                 opp_score = self._quick_score(x, y, opponent)
 
-                score = my_score * 2 + opp_score  # Prioritize attack
+                score = my_score * 2 + opp_score
                 if score > 0:
                     moves.append((x, y, score))
 
         moves.sort(key=lambda m: m[2], reverse=True)
-        return moves[:15]  # Only top 15 moves
+        return moves[:15]
 
     def _is_near_stone(self, x: int, y: int, dist: int) -> bool:
         """Check if near any stone"""

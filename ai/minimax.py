@@ -31,7 +31,6 @@ class MinimaxAI:
 
         for dx, dy in directions:
             count = 1
-            # Count in both directions
             for d in [-1, 1]:
                 i = 1
                 while True:
@@ -75,7 +74,6 @@ class MinimaxAI:
         if board.check_win(opponent):
             return -100000 - depth * 1000, None
 
-        # Get candidate moves
         detector = PatternDetector(board)
         candidates = detector.find_critical_moves(player)
 
@@ -86,13 +84,11 @@ class MinimaxAI:
 
         if maximizing:
             max_score = -float("inf")
-            for x, y, _ in candidates[:10]:  # Top 10 only
-                # Make move
+            for x, y, _ in candidates[:10]:
                 board.grid[y][x] = player
                 score, _ = self.minimax(
                     board, depth - 1, alpha, beta, False, player
                 )
-                # Undo move
                 board.grid[y][x] = 0
 
                 if score > max_score:
@@ -107,12 +103,10 @@ class MinimaxAI:
         else:
             min_score = float("inf")
             for x, y, _ in candidates[:10]:
-                # Make move
                 board.grid[y][x] = opponent
                 score, _ = self.minimax(
                     board, depth - 1, alpha, beta, True, player
                 )
-                # Undo move
                 board.grid[y][x] = 0
 
                 if score < min_score:
